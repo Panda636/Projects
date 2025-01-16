@@ -6,13 +6,31 @@
     <title>Document</title>
 </head>
 <body>
-    <a href="image_2025-01-16_190742427" download="cats">Download cute cat</a>
+    <!--<a href="image_2025-01-16_190742427" download="cats">Download cute cat</a>-->
+    <a href="#" onclick="PrintImage('YOUR_IMAGE_PATH_HERE.JPG'); return false;">print</a>
     <button onclick="cats('image_2025-01-16_190742427')">print</button>
     <script>
-        function cats(file) {
-            var w = window.open(file);
-            w.print();
+
+        function ImageToPrint(source)
+        {
+            return "<html><head><scri"+"pt>function step1(){\n" +
+                    "setTimeout('step2()', 10);}\n" +
+                    "function step2(){window.print();window.close()}\n" +
+                    "</scri" + "pt></head><body onload='step1()'>\n" +
+                    "<img src='" + source + "' /></body></html>";
         }
+        
+        function PrintImage(source)
+        {
+            var Pagelink = "about:blank";
+            var pwa = window.open(Pagelink, "_new");
+            pwa.document.open();
+            pwa.document.write(ImageToPrint(source));
+            pwa.document.close();
+        }
+    
     </script>
+    
+    
 </body>
 </html>
