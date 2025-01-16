@@ -7,9 +7,12 @@
 </head>
 <body>
     <a href="image_2025-01-16_190742427" download="cats">Download cute cat</a>
-    <button onclick="cats()">print</button>
+    <button onclick="cats('image_2025-01-16_190742427')">print</button>
     <script>
-        
+        function cats(file) {
+            var w = window.open(file);
+            w.print();
+        }
     </script>
 </body>
 </html>
