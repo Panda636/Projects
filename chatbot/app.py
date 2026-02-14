@@ -1,45 +1,54 @@
-from chatterbot import ChatBot
-from chatterbot.trainers import ListTrainer, ChatterBotCorpusTrainer
+import gradio as gr
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
-# Create and configure the chatbot
-chatbot = ChatBot(
-    'FriendlyBot',
-    logic_adapters=[
-        'chatterbot.logic.BestMatch',
-        'chatterbot.logic.MathematicalEvaluation',   # bonus: can do math!
-    ]
-)
+# Load pretrained DialoGPT model & tokenizer
+model_name = "microsoft/DialoGPT-medium"          # you can also try "-small" (faster) or "-large"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
-# -------------------------------
-# Quick training with your own conversations
-trainer = ListTrainer(chatbot)
+# Keep chat history (simple list of strings)
+chat_history_ids = None
 
-trainer.train([
-    "Hi", "Hello! How can I help you today?",
-    "Hey", "Hey there! 😊 What's up?",
-    "How are you?", "I'm doing great, thanks! How about you?",
-    "What's your name?", "I'm FriendlyBot, nice to meet you!",
-    "Tell me a joke", "Why don't programmers like nature? It has too many bugs! 😂",
-    "bye", "See you later! Have a great day 👋",
-    "What time is it?", "Sorry, I don't have a clock... but it's always chat time! 🕒",
-])
+def chat_with_bot(user_message, history):
+    global chat_history_ids
 
-# -------------------------------
-# Optional: Train with built-in English corpus (small talk, greetings, etc.)
-corpus_trainer = ChatterBotCorpusTrainer(chatbot)
-corpus_trainer.train("chatterbot.corpus.english")          # greetings, ai, botprofile, etc.
+    # Encode the new user input + add end-of-sentence token
+    new_input_ids = tokenizer.encode(user_message + tokenizer.eos_token, return_tensors='pt')
 
-print("FriendlyBot is ready! Type 'quit' or 'bye' to exit.\n")
+    # Append to history if exists
+    bot_input_ids = torch.cat([chat_history_ids, new_input_ids], dim=-1) if chat_history_ids is not None else new_input_ids
 
-while True:
-    try:
-        user_input = input("You: ")
-        if user_input.lower() in ['quit', 'bye', 'exit']:
-            print("Bot: Goodbye! 👋")
-            break
+    # Generate reply (greedy for simplicity; can add sampling later)
+    chat_history_ids = model.generate(
+        bot_input_ids,
+        max_length=1000,
+        pad_token_id=tokenizer.eos_token_id,
+        do_sample=True,          # ← makes replies more varied
+        top_p=0.95,
+        top_k=60,
+        temperature=0.75
+    )
 
-        response = chatbot.get_response(user_input)
-        print("Bot:", response)
+    # Decode only the new reply (skip input part)
+    reply_ids = chat_history_ids[:, bot_input_ids.shape[-1]:][0]
+    reply = tokenizer.decode(reply_ids, skip_special_tokens=True)
 
-    except(KeyboardInterrupt, EOFError, SystemExit):
-        break
+    # Update Gradio history format
+    history.append((user_message, reply))
+    return "", history   # clear input box, return updated history
+
+
+# Gradio interface
+with gr.Blocks(title="Simple DialoGPT Chatbot") as demo:
+    gr.Markdown("# Basic Pretrained Chatbot (DialoGPT-medium)")
+    gr.Markdown("Just type and press Enter. Type 'quit' or 'bye' to stop.")
+
+    chatbot = gr.Chatbot(height=500)
+    msg = gr.Textbox(placeholder="Type your message here...", label="You")
+    clear = gr.Button("Clear Chat")
+
+    msg.submit(chat_with_bot, [msg, chatbot], [msg, chatbot])
+    clear.click(lambda: None, None, chatbot, queue=False)
+
+demo.launch()
